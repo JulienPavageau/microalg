@@ -1,3 +1,6 @@
+(de !no_export (cmd)
+  (pack "// La commande " cmd " ne peut être exportée. ^J"))
+
 (de Litteral (content)
   (cond
     ((num? content) content)
@@ -13,35 +16,33 @@
 (de - (A B) (pack "(" A "-" B ")"))
 (de * (A B) (pack "(" A "×" B ")"))
 (de / (A B) (pack "(" A "÷" B ")"))
-(de % (A B) (pack "Mod(" A "," B ")"))
+(de % (A B) (pack "(" A "%" B ")"))
 (de ^ (A B) (pack "(" A "\^" B ")"))
 
-(de !!! (comz) (pack comz "^J"))
-(de Afficher (obj) (pack "Disp " obj "^J"))
+(de !!! (comz) (pack "// " (cdr (reverse (cdr (reverse (chop comz))))) "^J"))
+(de Afficher () (!no_export "Demander"))
 (de !store (!arg_lst)
   (let (var (eval (car !arg_lst))
         val (cadr !arg_lst))
        (cond
-         ((== 'Demander (car val))              (pack "Prompt Str" var "^J"))
-         ((== 'Demander_un_nombre (car val))    (pack "Prompt " var "^J"))
-         ((and (== 'Nombre (car val))
-               (== 'Demander (car (cadr val)))) (pack "Prompt " var "^J"))
-         (T                                     (pack (eval val) "→" var "^J"))
+         ((== 'Demander ())              (!no_export "Demander"))
+         ((== 'Demander_un_nombre ())    (!no_export "Demander_un_nombre"))
+         ((and (== 'Nombre ())
+               (== 'Demander ())) (!no_export "Demander"))
+         (T                                     (pack var ":=" (eval val) ";^J"))
        )
 ))
 (de Declarer !arg_lst
   (let (!splitted (split !arg_lst 'De_type)
         !vars (mapcar 'cadr (car !splitted))  # var name is in (Variable ...)
         !type (caadr !splitted))
-       (pack (glue " " !vars) " de type " (cadr !type) "^J")  # type is in (Litteral ...)
+       (pack "// " (glue " " !vars) " de type " (cadr !type) "^J")  # type is in (Litteral ...)
   )
 )
 (de Affecter_a  !arg_lst (!store !arg_lst))
-(de Demander () (pack "-- La commande `Demander` doit être utilisée avec "
-                      "`Affecter_a`. --"))
-(de Demander_un_nombre () (pack "-- La commande `Demander_un_nombre` doit être utilisée avec "
-                                "`Affecter_a`. --"))
-(de Entier@ (A B) (pack "randInt(" A "," B ")"))
+(de Demander () (!no_export "Demander"))
+(de Demander_un_nombre () (!no_export "Demander_un_nombre"))
+(de Entier@ (A B) (pack "alea(" B "-" A ")+" A ";^J"))
 (setq Vrai "1")
 (setq Faux "0")
 (de Si arg_lst (let (condition (car arg_lst)
@@ -50,41 +51,54 @@
                      bloc_vrai (car splitted)
                      bloc_faux (cadr splitted))
                     (pack
-                      "If " (eval condition) "^J" "Then^J"
+                      "si " (eval condition) " alors [^J"
                       (mapcar 'eval bloc_vrai)
-                      (if bloc_faux (pack "Else^J" (mapcar 'eval bloc_faux)))
-                      "End^J"
+                      (if bloc_faux (pack "] sinon [^J" (mapcar 'eval bloc_faux)))
+                      "]^J"
                     )
                 )
 )
-(de Non (bool) (pack "not(" bool ")"))
-(de Et !arg_lst (pack "(" (glue " and " (mapcar 'eval !arg_lst)) ")"))
-(de Ou !arg_lst (pack "(" (glue " or "  (mapcar 'eval !arg_lst)) ")"))
+(de Non (bool) (pack "(Not " bool ")"))
+(de Et !arg_lst (pack "(" (glue " && " (mapcar 'eval !arg_lst)) ")"))
+(de Ou !arg_lst (pack "(" (glue " || "  (mapcar 'eval !arg_lst)) ")"))
+(de Repeter () (!no_export "Repeter"))
+
 (de Tant_que arg_lst (let (!cond (car arg_lst)
                            !mot-clef (cadr arg_lst)
                            !corps (cddr arg_lst))
                           (pack
                             "While " (eval !cond) "^J"
                             (mapcar 'eval !corps)
-                            "End^J"
+                            "WhileEnd^J"
                           )
                      )
 )
+(de Faire arg_lst (let (!splitted (split arg_lst 'Tant_que)
+                        !corps (car !splitted)
+                        !cond (caadr !splitted))
+                       (pack
+                         "Do^J"
+                         (mapcar 'eval !corps)
+                         "LpWhile " (eval !cond) "^J"
+                       )
+                  )
+)
 
-(de =  (A B) (pack "(" A "=" B ")"))
-(de <  (A B) (pack "(" A "<" B ")"))
-(de <= (A B) (pack "(" A "≤" B ")"))
-(de >  (A B) (pack "(" A ">" B ")"))
-(de >= (A B) (pack "(" A "≥" B ")"))
-(de =/ (A B) (pack "(" A "≠" B ")"))
+(de =  (A B) (pack "(" A "=="  B ")"))
+(de <  (A B) (pack "(" A "<"  B ")"))
+(de <= (A B) (pack "(" A "<=" B ")"))
+(de >  (A B) (pack "(" A ">"  B ")"))
+(de >= (A B) (pack "(" A ">=" B ")"))
+(de =/ (A B) (pack "(" A "!="  B ")"))
+
+(de AV (A) (pack "av " A ";^J"))
+(de RAZ () (pack "vg;^J"))
+(de BC () (pack "bc;^J"))
+(de LC () (pack "lc;^J"))
+(de TD (A) (pack "td " A ";^J"))
+(de TG (A) (pack "tg " A ";^J"))
 
 (de ... () " (...) ")
-
-(de 1000Cosinus (!angle) (pack "(1000×cos(" !angle "))"))
-(de 1000Sinus   (!angle) (pack "(1000×sin(" !angle "))"))
-
-(de !no_export (cmd)
-  (pack "-- La commande " cmd " ne peut être exportée. --^J"))
 
 (de Concatener () (!no_export "Concatener"))  # StrJoin(
 (de Liste () (!no_export "Liste"))
@@ -101,8 +115,6 @@
 (de Texte () (!no_export "Texte"))
 (de Nombre () (!no_export "Nombre"))
 # Alors Sinon
-(de Faire () (!no_export "Faire"))
-(de Repeter () (!no_export "Repeter"))
 (de Definir () (!no_export "Definir"))
 (de Retourner () (!no_export "Retourner"))
 (de Exemples_de () (!no_export "Exemples_de"))
@@ -111,18 +123,13 @@
 # Rien
 (de Millisecondes () (!no_export "Millisecondes"))
 
-(de AV () (!no_export "AV"))
-(de BC () (!no_export "BC"))
-(de LC () (!no_export "LC"))
-(de TD () (!no_export "TD"))
-(de TG () (!no_export "TG"))
 (de Cercle () (!no_export "Cercle"))
 (de Contour () (!no_export "Contour"))
 (de Ellipse () (!no_export "Ellipse"))
 (de Epaisseur () (!no_export "Epaisseur"))
-(de RAZ () (!no_export "RAZ"))
 (de Rectangle () (!no_export "Rectangle"))
 (de Remplissage () (!no_export "Remplissage"))
-(de Repere () (!no_export "Repere"))
 (de Segment () (!no_export "Segment"))
 (de Triangle () (!no_export "Triangle"))
+(de 1000Cosinus () (!no_export "1000Cosinus"))
+(de 1000Sinus   () (!no_export "1000Sinus"))
