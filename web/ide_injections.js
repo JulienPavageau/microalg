@@ -1,8 +1,5 @@
 // Some defs.
 
-// Use an existing jQuery (like in Dokuwiki).
-if(typeof $ === "undefined") var $ = jQuery;
-
 // Helpers to fetch the content of lisp source files.
 // http://stackoverflow.com/questions/984510/what-is-my-script-src-url
 var this_script_url = (function(scripts) {
@@ -23,8 +20,7 @@ function getLispSource(what) {
         'microalg':   'microalg.l',
         'export':     'microalg_export.l',
         'blockly':    'microalg_export_blockly.l',
-        'casio':      'microalg_export_casio.l',
-        'processing': 'microalg_export_processing.l',
+        'geotortue':      'microalg_export_geotortue.l',
         'ti':         'microalg_export_ti.l',
         'arbretxt':   'microalg_export_arbretxt.l',
         'arbresvg':   'microalg_export_arbresvg.l',
@@ -70,39 +66,15 @@ function stdPrint(text, state) {
         return;
     }
     var target = $('#' + state.context.display_elt);
-    var suffix_length = "-displaytarget".length;
-    var root_id = state.context.display_elt.slice(0, -suffix_length);
-    var output_type_id = root_id + '-output-type';
-    var output_type = $('#' + output_type_id).val();
     text = cleanTransient(text);
     if (state.context.type == 'editor') {
-        // Create or append to state.context.output.
-        if (typeof state.context.output === "undefined") {
-            state.context.output = text;
-        } else {
-            state.context.output += '\n' + text;
+        if (target.html() == "&nbsp;" && text != "") {
+            target.html("");            // clean the target
         }
-        var output_as_html = '';
-        switch (output_type) {
-            case 'HTML':
-                output_as_html = state.context.output;
-                break;
-            case 'MD':
-                // Convert to HTML if Showdown available.
-                output_as_html = new Showdown.converter()
-                                     .makeHtml(state.context.output);
-                break;
-            case 'brut':
-            default:
-                output_as_html = state.context.output
-                                   .replace(/[<>]/g,
-                                     function (a) {
-                                       return {'<': '&lt;', '>': '&gt;'}[a];
-                                     })
-                                   .replace(/\n/g, '<br>');
-                output_as_html = '<pre class="brut">' + output_as_html + '</pre>';
+        if (typeof Showdown != 'undefined') {
+            text = new Showdown.converter().makeHtml(text);
         }
-        target.html(output_as_html);
+        target.html(target.html() + text);
     }
     if (state.context.type == 'repl') {
         var repl_elt = $('#' + state.context.display_elt);
@@ -146,7 +118,7 @@ function onCtrl(elt, f, config_64) {
                   "(Dm":  "(Demander)|",
                   "(E":   "(Exemples_de |\n    (Liste\n        (? )\n        (? )\n    )\n)",
                   "(E@":  "(Entie@ |)\n",
-                  "(F":   "(Faire\n    (|)\n    ()\n Tant_que ()\n)",
+                  "(F":   "(Faire (|)\n       ()\n Tant_que ()\n)",
                   "(I@":  "(Initialiser@ |)\n",
                   "(Li":  "(Liste |)",
                   "(Lo":  "(Longueur |)",
@@ -157,11 +129,10 @@ function onCtrl(elt, f, config_64) {
                   "(R":   "(Repeter | Fois\n    ()\n)",
                   "(Rd":  "(Retirer_de |)",
                   "(Re":  "(Retourner |)",
-                  "(Rp":  "(Repere |)",
                   "(S":   "(Si (|) Alors\n    ()\n)",
                   "(Ss":  "(Si (|)\n Alors ()\n Sinon ()\n)",
                   "(Te":  "(Tester |)",
-                  "(Tq":  "(Tant_que (|)\n Faire\n    ()\n    ()\n)"
+                  "(Tq":  "(Tant_que (|) Faire\n    ()\n    ()\n)"
                 };
                 // Grab content and split in 'before' and 'after' caret.
                 var src = elt.val();
@@ -221,8 +192,7 @@ function ide_action(editor_elt, config_64) {
         EMULISP_CORE.eval(src);
     } catch(e) {
         var link = '<a target="_blank" href="http://microalg.info/doc.html#erreursfrquentes">Voir les erreurs fréquentes.</a>';
-        var msg = e.message.replace('<', '&lt;');
-        error_elt.html(msg + ' <span class="malg-freq-error">' + link + '</span>');
+        error_elt.html(e.message + ' <span class="malg-freq-error">' + link + '</span>');
     }
     EMULISP_CORE.eval('(setq *LastStdOut "?")');
     if (config.localStorage && typeof(Storage) !== "undefined") {
@@ -258,7 +228,6 @@ function inject_microalg_editor_in(elt_id, config) {
     var export_id = elt_id + '-export';
     var editor_id = elt_id + '-malg-editor';
     var display_target_id = elt_id + '-displaytarget';
-    var output_type_id = elt_id + '-output-type';
     var blockly_id = elt_id + '-blockly';
     var processing_id = elt_id + '-processing';
     var src = '';
@@ -298,9 +267,8 @@ function inject_microalg_editor_in(elt_id, config) {
          '<strong>⚠</strong> MicroAlg 0.3.17 ':'') +
         '<select onchange="export_action(\'' + elt_id + '\', this);">' +
         '<option>exporter</option>' +
-        '<option>Casio</option>' +
+        '<option>Géotortue</option>' +
         '<option>TI</option>' +
-        '<option>Processing</option>' +
         '<option>Arbre 1</option>' +
         '<option>Arbre 2</option>' +
         '<option>Arbre 3</option>' +
@@ -314,12 +282,7 @@ function inject_microalg_editor_in(elt_id, config) {
         '<div ' + hidden + '><textarea id="' + editor_id + '" ' +
                                       'class="malg-editor" cols="80" rows="2"' +
                                       'spellcheck="false">' + src + '</textarea></div>' +
-        '<select id="' + output_type_id + '" class="malg-output-type">' +
-        '<option' + ((config.output == 'brut')?' selected':'') + '>brut</option>' +
-        '<option' + ((config.output == 'HTML')?' selected':'') + '>HTML</option>' +
-        ((typeof Showdown === 'undefined') ? '' : '<option' + ((config.output == 'MD')?' selected':'') + '>MD</option>') +
-        '</select> ' +
-        '<input type="button" value="OK" class="malg-ok-editor" ' +
+        '<input type="button" value="OK" class="malg-ok" ' +
                 'onclick="ide_action($(\'#' + elt_id + '-malg-editor\'), ' +
                                      "'" + config_64 + "'" + ')" />' +
         '<div class="malg-error"></div>' +
@@ -426,8 +389,6 @@ function inject_microalg_editor_in(elt_id, config) {
                 '  <block type="remplissage-p"></block>' +
                 '  <block type="remplissage"></block>' +
                 '  <block type="remplissage-alpha"></block>' +
-                '  <block type="repere"></block>' +
-                '  <block type="repere_grad"></block>' +
                 ' </category>' +
                 ' <category name="Cmdes tortue">' +
                 '  <block type="av"></block>' +
@@ -490,14 +451,11 @@ function inject_microalg_editor_in(elt_id, config) {
 }
 
 function export_action(elt_id, select) {
-    if (typeof Processing !== "undefined" && Processing.instances.length > 0) {
-        Processing.instances[0].exit();
-    }
     if (select.selectedIndex == 0) {
         $('#' + elt_id + '-export').html('');
         select.options[0].innerHTML = "exporter";
     } else {
-        var langs = [undefined, 'casio', 'ti', 'processing', 'arbretxt', 'arbresvg', 'arbreninja'];
+        var langs = [undefined, 'geotortue', 'ti', 'arbretxt', 'arbresvg', 'arbreninja'];
         var lang = langs[select.selectedIndex];
         var src = $('#' + elt_id + '-malg-editor').val();
         var exported_src = malg2other(lang, src);
@@ -508,46 +466,6 @@ function export_action(elt_id, select) {
                 JSON.parse(exported_src));
             tree.root.extended = false;
             tree.draw();
-        } else if (lang == 'processing') {
-            export_target.html('');
-            if (typeof Processing === "undefined") {
-                var msg = "Erreur : Processing n’est pas activé pour l’échantillon.";
-                export_target.html(msg);
-                select.options[0].innerHTML = "pas d’export";
-                return;
-            }
-            exported_src =
-                  "void setup() {\n" +
-                  "  size(600, 600);\n" +
-                  "  background(255);\n" +
-                  "  strokeWeight(1);\n" +
-                  "  stroke(color(0, 0, 0));\n" +
-                  "  fill(1, 0, 0, 0);\n" +
-                  "  rectMode(CORNERS);\n" +
-                  // TODO "  turtle = new Turtle();\n" +
-                  "}\n" +
-                  "void draw() {\n" +
-                  "  // EXPORTÉ DEPUIS MicroAlg\n" +
-                  exported_src.trim().split("\n")
-                              .map(function (l) {return '  ' + l;})
-                              .join("\n") + "\n" +
-                  "}\n" +
-                  "";
-            var msg = "Notez que les procédures <code>setup</code> (où la " +
-                      "taille est forcée à 600×600, entre autres choses) et " +
-                      "<code>draw</code> (contenant l’export) ont été ajoutées.";
-            var doc = $('<p/>', {html: msg});
-            export_target.append(doc);
-            var source = $('<div/>', {html: exported_src,
-                                      class: 'malg-export'});
-            export_target.append(source);
-            var sketch = $('<script/>', {html: exported_src,
-                                         type: "application/processing"});
-            export_target.append(sketch);
-            var canvas = $('<canvas/>', {class: "malg-sketch"});
-            export_target.append(canvas);
-            var reload = $('<script/>', {html: "Processing.reload();"});
-            export_target.append(reload);
         } else {
             export_target.html($('<div/>', {html: exported_src,
                                             class: 'malg-export'}));
@@ -577,23 +495,7 @@ function malg2other(lang, src) {
         var source_protegee = EMULISP_CORE.eval("(proteger_source  " + src + ")").toString();
         // On récupère une liste d’instructions.
         var source_preparee = '(pack ' + source_protegee.slice(1, -1) + ')';
-        var exported_src = '';
-        try {
-            exported_src = cleanTransient(EMULISP_CORE.eval(source_preparee).toString());
-        } catch(e) {
-            var prefix = "Error: ";
-            var suffix = " -- Undefined";
-            var msg = e.toString();
-            if (msg.slice(0, prefix.length) === prefix &&
-                msg.slice(-suffix.length) === suffix) {
-                var cmd = msg.slice(prefix.length, -suffix.length);
-                exported_src = "Impossible d’exporter " +
-                               "à cause de l’appel à la commande " +
-                               cmd + " (définie dans le programme).";
-            } else {
-                exported_src = msg;
-            }
-        }
+        var exported_src = cleanTransient(EMULISP_CORE.eval(source_preparee).toString());
         EMULISP_CORE.init();
         EMULISP_CORE.eval(getLispSource('microalg'));
         return exported_src;
